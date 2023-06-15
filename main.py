@@ -20,12 +20,12 @@ def init(device="mechanical"):
     for i in range(1, 7):
         keys.append(pygame.mixer.Sound(f"assets/{device}/key_{i}.wav"))
 
-def play_key(key):
+def play_key(key, repeat_allowed=True):
     if key == Key.enter:
-        if Key.enter not in pressed_keys:
+        if repeat_allowed or Key.enter not in pressed_keys:
             pressed_keys.add(Key.enter)
             enter.play()
-    elif key and key not in pressed_keys:
+    elif key and (repeat_allowed or key not in pressed_keys):
         pressed_keys.add(key)
         random.choice(keys).play()
 
@@ -35,7 +35,8 @@ def release_key(key):
 
 @click.command()
 @click.option('-t', '--typewriter', is_flag=True)
-def main(typewriter):
+@click.option('-r', '--repeat', is_flag=True, help='Enable key repeat')
+def main(typewriter, repeat):
     click.echo("Press CTRL + Esc to exit")
     if typewriter:
         init("typewriter")
@@ -43,8 +44,12 @@ def main(typewriter):
         init()
 
     # Create a listener for the keyboard
-    with keyboard.Listener(on_press=play_key, on_release=release_key) as listener:
-        listener.join()  # join the listener thread to the main thread to keep waiting for keys
+    listener = keyboard.Listener(
+        on_press=lambda k: play_key(k, repeat_allowed=repeat),
+        on_release=release_key
+    )
+    listener.start()
+    listener.join()
 
 
 if __name__ == '__main__':
