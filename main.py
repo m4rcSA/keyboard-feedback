@@ -1,7 +1,6 @@
 import sys
 import pygame
-from pynput import keyboard
-from pynput.keyboard import Key
+import keyboard
 import random
 
 import click
@@ -11,37 +10,41 @@ import click
 enter = None
 
 keys = []
+pressed_keys = set()
 
 def init(device="mechanical"):
     global enter, keys
     pygame.mixer.init()
     enter = pygame.mixer.Sound(f"assets/{device}/enter_click.wav")
-    for i in range(1,7):
+    for i in range(1, 7):
         keys.append(pygame.mixer.Sound(f"assets/{device}/key_{i}.wav"))
 
-def play_key(key):
-
-    if key==Key.enter:
-        enter.play()
-    elif key:
+def play_key(event, repeat_allowed=True):
+    if event.name == "enter":
+        if repeat_allowed or event.name not in pressed_keys:
+            pressed_keys.add(event.name)
+            enter.play()
+    elif event.name and (repeat_allowed or event.name not in pressed_keys):
+        pressed_keys.add(event.name)
         random.choice(keys).play()
-    else:
-        enter.play()
+
+def release_key(event):
+    if event.name in pressed_keys:
+        pressed_keys.remove(event.name)
 
 @click.command()
-@click.option('-t', '--typewriter', is_flag=True)
-def main(typewriter):
-    click.echo("Press CTRL + Esc to exit")
-    if typewriter:
-        init("typewriter")
-    else:
-        init()
+@click.option('-s', '--sound', type=str, default='mechanical', help='Specify the soundpack (e.g., mechanical, typewriter)')
+@click.option('-r', '--repeat', is_flag=True, help='Enable key repeat')
+def main(sound, repeat):
+    click.echo("Press CTRL + C to exit")
+    init(sound)
 
-    # Create a listener for the keyboard
-    listener = keyboard.Listener(on_press=play_key)
-    listener.start()  # start the listener
-    listener.join()  # join the listener thread to the main thread to keep waiting for keys
+    # Create keyboard hooks
+    keyboard.on_press(lambda event: play_key(event, repeat), suppress=True)
+    keyboard.on_release(lambda event: release_key(event), suppress=True)
 
+    # Keep the script running until CTRL + c is pressed
+    keyboard.wait()
 
 if __name__ == '__main__':
     main()
