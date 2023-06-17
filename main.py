@@ -20,11 +20,12 @@ def init(device_sound="nk-cream"):
         if value is not None:
             key_sounds[int(key)] = pygame.mixer.Sound(f"assets/{device_sound}/{value}")
 
-def play_key(event, repeat_allowed=True):
+def play_key(event, repeat_allowed=True, print_scan_code=False):
     if event.scan_code in key_sounds and (repeat_allowed or event.scan_code not in pressed_keys):
         pressed_keys.add(event.scan_code)
         key_sounds[event.scan_code].play()
-
+    if print_scan_code:
+        print(f"Scan code: {event.scan_code}")
 def release_key(event):
     if event.scan_code in pressed_keys:
         pressed_keys.remove(event.scan_code)
@@ -32,12 +33,13 @@ def release_key(event):
 @click.command()
 @click.option('-s', '--device-sound', type=str, default='nk-cream', help='Specify the device sound folder name')
 @click.option('-r', '--repeat', is_flag=True, help='Enable key repeat')
-def main(device_sound, repeat):
+@click.option('-p', '--print-scan-code', is_flag=True, help='Print the scan code of the pressed key')
+def main(device_sound, repeat, print_scan_code):
     click.echo("Press CTRL + C to exit")
     init(device_sound)
 
     # Create keyboard hooks
-    keyboard.on_press(lambda event: play_key(event, repeat), suppress=True)
+    keyboard.on_press(lambda event: play_key(event, repeat, print_scan_code), suppress=True)
     keyboard.on_release(lambda event: release_key(event), suppress=True)
 
     # Keep the script running indefinitely
