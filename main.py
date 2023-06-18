@@ -1,56 +1,58 @@
 import sys
 import pygame
 from pynput import keyboard
-from pynput.keyboard import Key
-import random
-
+import json
 import click
 
-
 # Load the sound
-enter = None
-
-keys = []
+key_sounds = {}
 pressed_keys = set()
 
-def init(device="mechanical"):
-    global enter, keys
-    pygame.mixer.init()
-    enter = pygame.mixer.Sound(f"assets/{device}/enter_click.wav")
-    for i in range(1, 7):
-        keys.append(pygame.mixer.Sound(f"assets/{device}/key_{i}.wav"))
+def init(device_sound="nk-cream"):
+    global key_sounds
 
-def play_key(key, repeat_allowed=True):
-    if key == Key.enter:
-        if repeat_allowed or Key.enter not in pressed_keys:
-            pressed_keys.add(Key.enter)
-            enter.play()
-    elif key and (repeat_allowed or key not in pressed_keys):
-        pressed_keys.add(key)
-        random.choice(keys).play()
+    config_file = f"assets/{device_sound}/config.json"
+    with open(config_file) as f:
+        config = json.load(f)
+
+    pygame.mixer.init()
+    for key, value in config['defines'].items():
+        if value is not None:
+            key_sounds[int(key)] = pygame.mixer.Sound(f"assets/{device_sound}/{value}")
+
+def play_key(key, repeat_allowed=True, print_scan_code=False):
+    scan_code = getattr(key, 'scan_code', None)
+    if scan_code is not None and scan_code in key_sounds and (repeat_allowed or scan_code not in pressed_keys):
+        pressed_keys.add(scan_code)
+        key_sounds[scan_code].play()
+    if print_scan_code:
+        print(f"Scan code: {scan_code}")
 
 def release_key(key):
-    if key in pressed_keys:
-        pressed_keys.remove(key)
+    scan_code = getattr(key, 'scan_code', None)
+    if scan_code is not None and scan_code in pressed_keys:
+        pressed_keys.remove(scan_code)
 
 @click.command()
-@click.option('-t', '--typewriter', is_flag=True)
+@click.option('-s', '--device-sound', type=str, default='nk-cream', help='Specify the device sound folder name')
 @click.option('-r', '--repeat', is_flag=True, help='Enable key repeat')
-def main(typewriter, repeat):
-    click.echo("Press CTRL + Esc to exit")
-    if typewriter:
-        init("typewriter")
-    else:
-        init()
+@click.option('-p', '--print-scan-code', is_flag=True, help='Print the scan code of the pressed key')
+def main(device_sound, repeat, print_scan_code):
+    click.echo("Press CTRL + C to exit")
+    init(device_sound)
 
-    # Create a listener for the keyboard
+    # Create keyboard listener
     listener = keyboard.Listener(
-        on_press=lambda k: play_key(k, repeat_allowed=repeat),
-        on_release=release_key
+        on_press=lambda key: play_key(key, repeat, print_scan_code),
+        on_release=lambda key: release_key(key)
     )
     listener.start()
-    listener.join()
 
+    # Keep the script running indefinitely
+    try:
+        listener.join()
+    except KeyboardInterrupt:
+        pass
 
 if __name__ == '__main__':
     main()
