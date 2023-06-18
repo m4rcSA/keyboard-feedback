@@ -4,7 +4,7 @@ from pynput import keyboard
 import json
 import click
 import random
-from os import path
+from pathlib import Path
 
 # Load the sound
 key_sounds = {}
@@ -13,19 +13,20 @@ pressed_keys = set()
 def init(device_sound="nk-cream"):
     global key_sounds
 
-    if path.isdir(device_sound):
-        sound_folder = device_sound
-    else:
-        sound_folder = f"assets/{device_sound}"
+    sound_folder = Path(device_sound)
+    # Check if the provided path is only the name
+    if not sound_folder.exists():
+        sound_folder = Path("soundpacks") / sound_folder
 
-    config_file = path.join(sound_folder, "config.json")
+    config_file = sound_folder / "config.json"
     with open(config_file) as f:
         config = json.load(f)
 
     mixer.init()
     for key, value in config['defines'].items():
         if value is not None:
-            key_sounds[int(key)] = mixer.Sound(f"assets/{device_sound}/{value}")
+            sound_file = sound_folder / value
+            key_sounds[int(key)] = mixer.Sound(sound_file)
 
 def play_key(key, repeat_allowed=False, print_scan_code=False, debug=False):
     try:
