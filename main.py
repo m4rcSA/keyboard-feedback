@@ -1,9 +1,10 @@
 import sys
-import pygame
+from pygame import mixer
 from pynput import keyboard
 import json
 import click
 import random
+from os import path
 
 # Load the sound
 key_sounds = {}
@@ -12,14 +13,19 @@ pressed_keys = set()
 def init(device_sound="nk-cream"):
     global key_sounds
 
-    config_file = f"assets/{device_sound}/config.json"
+    if path.isdir(device_sound):
+        sound_folder = device_sound
+    else:
+        sound_folder = f"assets/{device_sound}"
+
+    config_file = path.join(sound_folder, "config.json")
     with open(config_file) as f:
         config = json.load(f)
 
-    pygame.mixer.init()
+    mixer.init()
     for key, value in config['defines'].items():
         if value is not None:
-            key_sounds[int(key)] = pygame.mixer.Sound(f"assets/{device_sound}/{value}")
+            key_sounds[int(key)] = mixer.Sound(f"assets/{device_sound}/{value}")
 
 def play_key(key, repeat_allowed=False, print_scan_code=False, debug=False):
     try:
