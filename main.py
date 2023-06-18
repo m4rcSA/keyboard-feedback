@@ -1,8 +1,10 @@
 import sys
 import pygame
-import keyboard
-import json
 import click
+import subprocess
+import json
+import re
+import threading
 
 # Load the sound
 key_sounds = {}
@@ -20,33 +22,60 @@ def init(device_sound="nk-cream"):
         if value is not None:
             key_sounds[int(key)] = pygame.mixer.Sound(f"assets/{device_sound}/{value}")
 
-def play_key(event, repeat_allowed=True, print_scan_code=False):
-    if event.scan_code in key_sounds and (repeat_allowed or event.scan_code not in pressed_keys):
-        pressed_keys.add(event.scan_code)
-        key_sounds[event.scan_code].play()
-    if print_scan_code:
-        print(f"Scan code: {event.scan_code}")
-def release_key(event):
-    if event.scan_code in pressed_keys:
-        pressed_keys.remove(event.scan_code)
+def play_key(scan_code, repeat_allowed=True):
+    if scan_code in key_sounds and (repeat_allowed or scan_code not in pressed_keys):
+        pressed_keys.add(scan_code)
+        key_sounds[scan_code].play()
+
+def process_libinput_output(output, repeat, debug):
+    lines = output.strip().split('\n')
+    for line in lines:
+        if debug:
+            click.echo(line)  # Print the libinput event
+
+        event_parts = line.strip().split()
+        if len(event_parts) >= 5 and event_parts[1] == 'KEYBOARD_KEY':
+            if event_parts[5] == 'pressed':
+                match = re.search(r'\((\d+)\)', event_parts[4])
+                if match:
+                    scan_code = int(match.group(1))
+                    play_key(scan_code, repeat)
+            elif event_parts[5] == 'released':
+                match = re.search(r'\((\d+)\)', event_parts[4])
+                if match:
+                    scan_code = int(match.group(1))
+                    if scan_code in pressed_keys:
+                        pressed_keys.remove(scan_code)
 
 @click.command()
 @click.option('-s', '--device-sound', type=str, default='nk-cream', help='Specify the device sound folder name')
 @click.option('-r', '--repeat', is_flag=True, help='Enable key repeat')
-@click.option('-p', '--print-scan-code', is_flag=True, help='Print the scan code of the pressed key')
-def main(device_sound, repeat, print_scan_code):
+@click.option('-d', '--debug', is_flag=True, help='Enable debug mode to print libinput events')
+def main(device_sound, repeat, debug):
     click.echo("Press CTRL + C to exit")
     init(device_sound)
 
-    # Create keyboard hooks
-    keyboard.on_press(lambda event: play_key(event, repeat, print_scan_code), suppress=True)
-    keyboard.on_release(lambda event: release_key(event), suppress=True)
+    libinput_command = ['sudo', 'libinput', 'debug-events', '--show-keycodes', '--device', '/dev/input/event3']
+    libinput_process = subprocess.Popen(libinput_command, stdout=subprocess.PIPE, universal_newlines=True)
 
-    # Keep the script running indefinitely
+    def read_libinput_output():
+        while True:
+            output = libinput_process.stdout.readline()
+            if not output:
+                break
+            process_libinput_output(output, repeat, debug)
+
+    # Start a separate thread to read libinput output
+    libinput_thread = threading.Thread(target=read_libinput_output)
+    libinput_thread.start()
+
     try:
-        keyboard.wait()
+        while True:
+            pass  # Keep the main thread running
+
     except KeyboardInterrupt:
-        pass
+        libinput_process.kill()
+        libinput_thread.join()
 
 if __name__ == '__main__':
     main()
