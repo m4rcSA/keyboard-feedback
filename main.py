@@ -32,7 +32,7 @@ def play_key(key, repeat_allowed=False, print_scan_code=False, debug=False):
     try:
         scan_code = key.vk
         if debug:
-            click.echo(f"key.vk {scan_code}")
+            click.echo(f"key.vk {key}")
     except AttributeError:
         scan_code = key.value.vk
         if debug:
